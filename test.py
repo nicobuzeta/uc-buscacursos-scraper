@@ -20,5 +20,5 @@ for c, x in enumerate(page.find_all('table')):
 print(y)
 
 print(type(page.find_all(attrs={'class': 'resultadosRowPar'})))
-print(len(page.find_all(attrs={'class': 'resultadosRowImpar'})))
+print(len(page.find_all(attrs={'class': 'resultadosRowImpar'})))xddxdx
 print(type(page.find_all(attrs={'class': ['resultadosRowImpar', 'resultadosRowPar']})[0].find('td').text))
