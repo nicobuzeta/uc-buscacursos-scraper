@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime
+
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -7,10 +8,6 @@ import datetime
 
 Base = declarative_base()
 
-
-import aiohttp
-import asyncio
-import bs4
 import copy
 import datetime
 from collections import defaultdict
@@ -61,15 +58,13 @@ class Course(Base):
     campus = Column(String)
     credits = Column(Integer)
 
+
     schedules = relationship('Schedule', backref='course', cascade='all, delete')
 
     vacancy_checks = relationship('VacancyCheck', backref='course', cascade='all, delete')
 
     def __init__(self, nrc, semester):
-        self.parameters = copy.deepcopy(self.base_parameters)
 
-        self.parameters['cxml_semestre'] = semester
-        self.parameters['cxml_nrc'] = nrc
 
         self.nrc = int(nrc)  # INT
         self.semester = semester
@@ -87,34 +82,47 @@ class Course(Base):
         # self.campus = None  # INT
         # self.credits = None  # INT
 
-    async def load_base_info(self, proxy_session_list, use_proxy):
-        page = await fetch_parse_html(self.base_url, self.parameters, proxy_session_list, use_proxy)
+    async def load_main_page(self, proxy_session_list, use_proxy, save_info=True):
+        parameters = copy.deepcopy(self.base_parameters)
+        parameters['cxml_semestre'] = self.semester
+        parameters['cxml_nrc'] = self.nrc
+        page = await fetch_parse_html(self.base_url, parameters, proxy_session_list, use_proxy)
+        if page is None:
+            return None
         table = page.find(attrs={'class': ['resultadosRowPar']})
-        for _ in range(10):
+        for x in range(2):
             if table is None:
-                page = await fetch_parse_html(self.base_url, self.parameters, proxy_session_list, use_proxy)
+                page = await fetch_parse_html(self.base_url, parameters, proxy_session_list, use_proxy)
                 table = page.find(attrs={'class': ['resultadosRowPar']})
+                # print('Repeating', self.nrc)
+                continue
             else:
                 break
+        if table is None:
+            return None
         rows = table.find_all('td', recursive=False)
-        direct_rows = rows[1:14]
-        time_table = rows[16].find('table')
-        self.departamento = table.parent.find('tr').text.strip()
-        self.sigla = direct_rows[0].text.strip()
-        self.permite_retiro = direct_rows[1].text.strip()
-        self.dicta_ingles = direct_rows[2].text.strip()
-        self.section = int(direct_rows[3].text.strip())
-        self.need_special_approval = direct_rows[4].text.strip()
-        self.area_fg = direct_rows[5].text.strip()
-        self.formato_curso = direct_rows[6].text.strip()
-        self.categoria = direct_rows[7].text.strip()
-        self.nombre = direct_rows[8].text.strip()
-        self.profesor = direct_rows[9].text.strip()
-        self.campus = direct_rows[10].text.strip()
-        self.credits = int(direct_rows[11].text.strip())
+        direct_rows = rows[1:16]
+        if save_info:
+            time_table = rows[16].find('table')
+            self.departamento = table.parent.find('tr').text.strip()
+            self.sigla = direct_rows[0].text.strip()
+            self.permite_retiro = direct_rows[1].text.strip()
+            self.dicta_ingles = direct_rows[2].text.strip()
+            self.section = int(direct_rows[3].text.strip())
+            self.need_special_approval = direct_rows[4].text.strip()
+            self.area_fg = direct_rows[5].text.strip()
+            self.formato_curso = direct_rows[6].text.strip()
+            self.categoria = direct_rows[7].text.strip()
+            self.nombre = direct_rows[8].text.strip()
+            self.profesor = direct_rows[9].text.strip()
+            self.campus = direct_rows[10].text.strip()
+            self.credits = int(direct_rows[11].text.strip())
+            self.parse_schedule(time_table)
+            print(f'adding Course {self.nrc}')
+        total = int(direct_rows[12].text.strip())
+        available = int(direct_rows[13].text.strip())
 
-        self.parse_schedule(time_table)
-        print(f'adding Course {self.nrc}')
+        return total, available
 
     def parse_schedule(self, table):
         rows = table.find_all('tr')
@@ -166,6 +174,20 @@ class Course(Base):
                 #                               vacancy_concentration=concentration, offered=slots['Ofrecidas'],
                 #                               occupied=slots['Ocupadas'], available=slots['Disponibles'])
                 # current_check.vacancies.append(vacancy_information)
+
+            # print('done')
+        except Exception as e:
+            res = await self.load_main_page(proxy_session_list, True, False)
+            if res is not None:
+                total, available = res
+                vacancy_information = Vacancy(vacancy_check_id=current_check.id, vacancy_type=escuela,
+                                              vacancy_level=level, vacancy_program=program,
+                                              vacancy_concentration=concentration, offered=total,
+                                              occupied=total - available, available=available)
+                vacancies.append(vacancy_information)
+            vacancy_checks.append(current_check)
+            # print('rip')
+        else:
             for (escuela, level, program, concentration), all_vacancies in vacancies_vector.items():
                 vacancy_information = Vacancy(vacancy_check_id=current_check.id, vacancy_type=escuela,
                                               vacancy_level=level, vacancy_program=program,
@@ -173,10 +195,6 @@ class Course(Base):
                                               occupied=all_vacancies[1], available=all_vacancies[2])
                 vacancies.append(vacancy_information)
             vacancy_checks.append(current_check)
-            # print('done')
-        except Exception as e:
-            pass
-            # print(e)
 
     def __repr__(self):
         return str({'Nrc': self.nrc, 'departamento': self.departamento, 'Sigla': self.sigla,
@@ -242,6 +260,8 @@ class Schedule(Base):
     modulo = Column(String, primary_key=True)
     class_type = Column(Enum(ClassTypes), primary_key=True)
 
+    def __repr__(self):
+        return str({'Nrc': self.nrc, 'Day': self.day, 'Modulo': self.modulo, 'Class Type': self.class_type})
 
 
 class VacancyCheck(Base):
