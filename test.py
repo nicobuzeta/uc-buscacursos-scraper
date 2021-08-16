@@ -6,7 +6,7 @@ import time
 import cchardet
 from multiprocessing import Pool, Process, Queue
 
-with open('proxies.txt') as f:
+with open('proxies2.txt') as f:
     proxies = f.read().splitlines()
     print(proxies)
 

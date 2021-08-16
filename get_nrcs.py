@@ -52,7 +52,7 @@ async def main_nrc(url, base_params, use_proxies):
     return list(filter(None, responses))
 
 
-with open('proxies.txt') as f:
+with open('proxies2.txt') as f:
     proxies = f.read().splitlines()
 
 base_url = 'http://buscacursos.uc.cl/'

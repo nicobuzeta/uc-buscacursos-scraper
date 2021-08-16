@@ -19,7 +19,7 @@ from functions import fetch_parse_html
 
 
 class Course(Base):
-    __table_args__ = {"schema": "test"}
+    __table_args__ = {"schema": "2021-2"}
     __tablename__ = 'courses'
     base_url = 'http://buscacursos.uc.cl/'
 
@@ -59,7 +59,7 @@ class Course(Base):
     nombre = Column(String)
     profesor = Column(String)
     campus = Column(String)
-    credits = Column(String)
+    credits = Column(Integer)
 
     schedules = relationship('Schedule', backref='course', cascade='all, delete')
 
@@ -142,6 +142,8 @@ class Course(Base):
             self.vacancy_parameters['termcode'] = self.semester
             page = await fetch_parse_html(self.base_url_vacancies, self.vacancy_parameters, proxy_session_list,
                                           use_proxy)
+            if page is None:
+                return None
             table = page.find('table')
             rows = table.find_all(attrs={'class': ['resultadosRowImpar', 'resultadosRowPar']})[1:-1]
             current_check = VacancyCheck(id=vacancy_check_id, nrc=self.nrc, time=datetime.datetime.now())
@@ -232,30 +234,31 @@ class ClassTypes(enum.Enum):
 
 
 class Schedule(Base):
-    __table_args__ = {"schema": "test"}
+    __table_args__ = {"schema": "2021-2"}
     __tablename__ = 'schedules'
 
-    nrc = Column(Integer, ForeignKey('test.courses.nrc'), primary_key=True)
+    nrc = Column(Integer, ForeignKey('2021-2.courses.nrc'), primary_key=True)
     day = Column(Enum(WeekDays), primary_key=True)
     modulo = Column(String, primary_key=True)
     class_type = Column(Enum(ClassTypes), primary_key=True)
 
 
+
 class VacancyCheck(Base):
-    __table_args__ = {"schema": "test"}
+    __table_args__ = {"schema": "2021-2"}
     __tablename__ = 'vacancy_checks'
 
     id = Column(Integer, primary_key=True)
-    nrc = Column(Integer, ForeignKey('test.courses.nrc'))
+    nrc = Column(Integer, ForeignKey('2021-2.courses.nrc'))
     time = Column(DateTime)
     vacancies = relationship('Vacancy', backref='vacancy_checks', cascade='all, delete')
 
 
 class Vacancy(Base):
-    __table_args__ = {"schema": "test"}
+    __table_args__ = {"schema": "2021-2"}
     __tablename__ = 'vacancies'
 
-    vacancy_check_id = Column(Integer, ForeignKey('test.vacancy_checks.id'), primary_key=True)
+    vacancy_check_id = Column(Integer, ForeignKey('2021-2.vacancy_checks.id'), primary_key=True)
     vacancy_type = Column(String, primary_key=True)
     vacancy_level = Column(String, primary_key=True)
     vacancy_program = Column(String, primary_key=True)

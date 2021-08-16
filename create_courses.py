@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 
 
-with open('proxies.txt') as f:
+with open('proxies2.txt') as f:
     proxies = f.read().splitlines()
 
 # async def xd(course):
@@ -22,14 +22,14 @@ async def main(proxy_list, semester, db_session):
     for proxy in proxy_list:
         connector = aiohttp.TCPConnector(force_close=True, limit=300)
         aio_session = aiohttp.ClientSession(connector=connector)
-        proxy_session_list.append([proxy, aio_session])
+        proxy_session_list.append([proxy, aio_session, 0, False])
     for nrc in nrcs:
         course = Course(nrc, semester)
         courses.append(course)
-        task = course.load_base_info(proxy_session_list, True)
+        task = course.load_main_page(proxy_session_list, True)
         tasks.append(task)
     await asyncio.gather(*tasks)
-    for proxy, aio_session in proxy_session_list:
+    for proxy, aio_session, num_failed, status in proxy_session_list:
         await aio_session.close()
     db_session.add_all(courses)
     return courses
